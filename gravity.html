@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b12">
+<meta name="description" content="Fling glowing planets, grow stars, and watch n-body gravity merge them.">
+<link rel="icon" href="data:,">
+<title>Gravity Sandbox</title>
+<style>
+:root { color-scheme: dark; --wt-bg: rgba(14,14,22,.94); --wt-line: rgba(255,255,255,.1); --wt-txt: #ececf4; --wt-mute: #a9a9c0; --wt-acc: #5b4de0; --wt-acc2: #8f80ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0b12; overflow: hidden; color: var(--wt-txt); font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+#stage { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
+button, select { font: inherit; color: var(--wt-txt); background: #1d1d2b; border: 1px solid #2e2e44; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+button:hover { background: #26263a; }
+button[aria-pressed="true"] { background: var(--wt-acc); border-color: #7b6cff; color: #fff; }
+:focus-visible { outline: 2px solid var(--wt-acc2); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--wt-acc2); }
+input[type=color] { width: 44px; height: 28px; border: 1px solid #2e2e44; border-radius: 6px; background: #1d1d2b; padding: 2px; }
+#wt-toggle { position: fixed; z-index: 5; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); width: 42px; height: 42px;
+  border-radius: 50%; padding: 0; font-size: 20px; line-height: 1; background: rgba(20,20,32,.75); border-color: rgba(255,255,255,.16); backdrop-filter: blur(6px); }
+#wt-panel { position: fixed; z-index: 4; top: calc(60px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); width: 300px;
+  max-height: calc(100vh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: auto; background: var(--wt-bg); border: 1px solid var(--wt-line);
+  border-radius: 14px; padding: 12px 14px 14px; box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(10px); }
+#wt-panel[hidden], #wt-help[hidden] { display: none; }
+#wt-panel h1 { font-size: 14px; margin: 0 0 8px; }
+.wt-row { display: grid; grid-template-columns: 92px 1fr 46px; gap: 6px; align-items: center; margin: 5px 0; }
+.wt-row2 { grid-template-columns: 92px 1fr; }
+.wt-row1 { margin: 5px 0; } .wt-row1 button { width: 100%; text-align: left; }
+.wt-row output, .wt-row2 output { color: var(--wt-mute); text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+.wt-sec { margin: 8px 0; } .wt-lab { color: var(--wt-mute); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+.wt-lab2 { color: var(--wt-txt); }
+.wt-pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.wt-pals button { display: flex; flex-direction: column; gap: 3px; padding: 4px; font-size: 11px; }
+.wt-sw { height: 14px; border-radius: 4px; display: block; }
+.wt-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+#wt-status { margin-top: 10px; color: var(--wt-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wt-hint { color: var(--wt-mute); font-size: 11px; margin-top: 4px; }
+kbd { background: #24243a; border: 1px solid #34344e; border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, monospace; color: var(--wt-txt); }
+#wt-toast { position: fixed; z-index: 6; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); background: rgba(12,12,20,.92); color: var(--wt-txt);
+  border: 1px solid var(--wt-line); border-radius: 999px; padding: 7px 14px; font-size: 12.5px; pointer-events: none; opacity: 0; transition: opacity .4s; max-width: 92vw; }
+#wt-toast.on { opacity: 1; }
+#wt-fps { position: fixed; z-index: 5; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); background: rgba(12,12,20,.85); color: #b8ffcf;
+  font: 12px ui-monospace, monospace; padding: 3px 7px; border-radius: 6px; pointer-events: none; }
+#wt-help { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(0,0,0,.55); padding: 16px; }
+#wt-help .wt-card { position: relative; background: #12121c; border: 1px solid var(--wt-line); border-radius: 14px; padding: 16px 18px; min-width: 260px; max-width: 92vw; max-height: 86vh; overflow: auto; }
+#wt-help h2 { font-size: 15px; margin: 0 28px 10px 0; } #wt-help td { padding: 3px 8px 3px 0; color: var(--wt-txt); }
+.wt-close { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1; }
+.wt-fallback { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; }
+@media (max-width: 600px) {
+  #wt-panel { top: auto; left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-height: 56vh; }
+  button, select { padding: 8px 9px; } .wt-row { grid-template-columns: 86px 1fr 42px; }
+}
+
+/* app-specific styles (appended after the kit's base.css) */
+
+</style>
+</head>
+<body>
+<canvas id="stage" role="img" aria-label="Gravity Sandbox"></canvas>
+<script>
+/* built by webtoy build from webtoy-kit (util, rng, state, keys, pointer, audio, loop, view, panel, app) on 2026-10-19 00:17 */
+(() => {
+"use strict";
+const CONFIG = {"id": "gravity", "title": "Gravity Sandbox", "description": "Fling glowing planets, grow stars, and watch n-body gravity merge them.", "audio": true, "hires": [2560, 1440], "palettes": {"nebula": {"bg": "#05040c", "colors": ["#ff6ad5", "#c774e8", "#ad8cff", "#8795e8", "#94d0ff", "#ffd36b"]}, "ember": {"bg": "#0a0503", "colors": ["#ff5e3a", "#ff9a3c", "#ffd36b", "#ff3d7f", "#fff1c1"]}, "glacier": {"bg": "#01070d", "colors": ["#5ef2ff", "#00c2ff", "#1de9b6", "#c4fbff", "#7b9cff"]}, "aurora": {"bg": "#020a08", "colors": ["#3cffb4", "#2ad1ff", "#d4ff6b", "#b05cff", "#7dffd8"]}, "mono": {"bg": "#050505", "colors": ["#ffffff", "#d8d8d8", "#a8a8a8", "#f0e6d0", "#c0c8d8"]}}, "controls": [{"key": "preset", "type": "select", "label": "Preset", "default": "solar", "options": ["binary", "solar", "figure8", "galaxy", "chaos"], "labels": {"binary": "Binary star", "solar": "Solar system", "figure8": "Figure-eight (3-body)", "galaxy": "Galaxy disk", "chaos": "Chaos"}}, {"key": "palette", "type": "palette", "label": "Palette", "default": "nebula"}, {"key": "gravity", "type": "range", "label": "Gravity", "min": 0.2, "max": 3, "step": 0.05, "default": 1}, {"key": "speed", "type": "range", "label": "Time speed", "min": 0.1, "max": 3, "step": 0.05, "default": 1}, {"key": "trail", "type": "range", "label": "Trail length", "min": 0, "max": 400, "step": 10, "default": 160}, {"key": "collide", "type": "toggle", "label": "Collisions merge", "default": true}, {"key": "stars", "type": "toggle", "label": "Starfield", "default": true}, {"key": "sound", "type": "toggle", "label": "Impact sound", "default": true}, {"key": "seed", "type": "seed", "label": "Seed", "default": 0}]};
+const Kit = {};
+/* ---- kit: 00-util.js ---- */
+/* util: DOM helpers, toast, download */
+Kit.$ = (sel, root = document) => root.querySelector(sel);
+Kit.el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === "text") e.textContent = v; else if (k === "html") e.innerHTML = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v); }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+};
+Kit.clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+let toastT = 0;
+Kit.toast = (msg, ms = 1800) => {
+  let t = document.getElementById("wt-toast");
+  if (!t) { t = Kit.el("div", { id: "wt-toast", role: "status", "aria-live": "polite" }); document.body.append(t); }
+  t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), ms);
+};
+Kit.download = (blob, name) => { const a = Kit.el("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+
+/* ---- kit: 10-rng.js ---- */
+/* rng: seeded PRNG (mulberry32) + seeded 2D/3D simplex noise (Gustavson) */
+Kit.newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
+Kit.rng = function (seed) {
+  let a = (seed >>> 0) || 1;
+  const f = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  f.range = (lo, hi) => lo + f() * (hi - lo);
+  f.int = (lo, hi) => Math.floor(lo + f() * (hi - lo + 1));
+  f.pick = arr => arr[Math.floor(f() * arr.length)];
+  f.chance = p => f() < p;
+  f.gauss = () => { let u = 0, v = 0; while (!u) u = f(); while (!v) v = f(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  return f;
+};
+Kit.noise = function (seed) {
+  const r = Kit.rng((seed ^ 0x9e3779b9) >>> 0), p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0, t = p[i]; p[i] = p[j]; p[j] = t; }
+  const perm = new Uint8Array(512), pm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) { perm[i] = p[i & 255]; pm[i] = (perm[i] % 12) * 3; }
+  const g = new Float32Array([1,1,0,-1,1,0,1,-1,0,-1,-1,0,1,0,1,-1,0,1,1,0,-1,-1,0,-1,0,1,1,0,-1,1,0,1,-1,0,-1,-1]), F3 = 1 / 3, G3 = 1 / 6;
+  function n3(xin, yin, zin) {
+    const s = (xin + yin + zin) * F3, i = Math.floor(xin + s), j = Math.floor(yin + s), k = Math.floor(zin + s);
+    const t = (i + j + k) * G3, x0 = xin - (i - t), y0 = yin - (j - t), z0 = zin - (k - t);
+    let i1, j1, k1, i2, j2, k2;
+    if (x0 >= y0) { if (y0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0; } else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1; } else { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1; } }
+    else { if (y0 < z0) { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1; } else if (x0 < z0) { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1; } else { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0; } }
+    const x1 = x0 - i1 + G3, y1 = y0 - j1 + G3, z1 = z0 - k1 + G3, x2 = x0 - i2 + 2 * G3, y2 = y0 - j2 + 2 * G3, z2 = z0 - k2 + 2 * G3;
+    const x3 = x0 - 1 + 3 * G3, y3 = y0 - 1 + 3 * G3, z3 = z0 - 1 + 3 * G3, ii = i & 255, jj = j & 255, kk = k & 255;
+    let n = 0, q, gi;
+    q = 0.6 - x0 * x0 - y0 * y0 - z0 * z0; if (q > 0) { gi = pm[ii + perm[jj + perm[kk]]]; q *= q; n += q * q * (g[gi] * x0 + g[gi + 1] * y0 + g[gi + 2] * z0); }
+    q = 0.6 - x1 * x1 - y1 * y1 - z1 * z1; if (q > 0) { gi = pm[ii + i1 + perm[jj + j1 + perm[kk + k1]]]; q *= q; n += q * q * (g[gi] * x1 + g[gi + 1] * y1 + g[gi + 2] * z1); }
+    q = 0.6 - x2 * x2 - y2 * y2 - z2 * z2; if (q > 0) { gi = pm[ii + i2 + perm[jj + j2 + perm[kk + k2]]]; q *= q; n += q * q * (g[gi] * x2 + g[gi + 1] * y2 + g[gi + 2] * z2); }
+    q = 0.6 - x3 * x3 - y3 * y3 - z3 * z3; if (q > 0) { gi = pm[ii + 1 + perm[jj + 1 + perm[kk + 1]]]; q *= q; n += q * q * (g[gi] * x3 + g[gi + 1] * y3 + g[gi + 2] * z3); }
+    return 32 * n;
+  }
+  return { n3, n2: (x, y) => n3(x, y, 0.5) };
+};
+
+/* ---- kit: 20-state.js ---- */
+/* state: settings from CONFIG.controls, synced to the URL hash (share links) and localStorage. Priority: hash > storage > default */
+Kit.state = function (config) {
+  const ctrls = (config.controls || []).filter(c => c.key), byKey = Object.fromEntries(ctrls.map(c => [c.key, c]));
+  const storeKey = "webtoy:" + (config.id || location.pathname), listeners = [];
+  const coerce = (c, v) => {
+    switch (c.type) {
+      case "range": { let x = +v; if (v === "" || v == null || !Number.isFinite(x)) return c.default; x = Kit.clamp(x, c.min, c.max); if (c.step) x = c.min + Math.round((x - c.min) / c.step) * c.step; return +x.toFixed(6); }
+      case "toggle": return v === true || v === "true" || v === "1" || v === 1;
+      case "select": { const o = c.options.find(o => String(o) === String(v)); return o === undefined ? c.default : o; }
+      case "palette": return config.palettes && Object.prototype.hasOwnProperty.call(config.palettes, v) ? String(v) : c.default;
+      case "color": return /^#[0-9a-f]{6}$/i.test(String(v)) ? String(v).toLowerCase() : c.default;
+      case "seed": { const s = parseInt(v, 10); return s > 0 && s < 2147483647 ? s : (c.default > 0 ? c.default : Kit.newSeed()); }
+      default: return v;
+    }
+  };
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(storeKey) || "{}") || {}; } catch (_) { stored = {}; }
+  const hash = new URLSearchParams(location.hash.slice(1)), values = {};
+  for (const c of ctrls) values[c.key] = coerce(c, hash.has(c.key) ? hash.get(c.key) : (c.key in stored ? stored[c.key] : c.default));
+  const query = () => "#" + new URLSearchParams(ctrls.filter(c => !c.local).map(c => [c.key, c.type === "toggle" ? (values[c.key] ? 1 : 0) : values[c.key]]));
+  let wrote = "", timer = 0;
+  const persist = () => {
+    clearTimeout(timer); const h = query();
+    if (location.hash !== h) { wrote = h; history.replaceState(null, "", h); }
+    try { localStorage.setItem(storeKey, JSON.stringify(values)); } catch (_) {}
+  };
+  const api = {
+    values, controls: ctrls, byKey, storeKey,
+    get: k => values[k],
+    set(k, v, opts = {}) {
+      const c = byKey[k]; if (!c) throw new Error("unknown setting: " + k);
+      const nv = coerce(c, v); if (nv === values[k] && !opts.force) return false;
+      values[k] = nv; clearTimeout(timer); if (opts.now) persist(); else timer = setTimeout(persist, 200);
+      for (const fn of listeners) fn(k, nv, opts); return true;
+    },
+    setMany(obj, opts = {}) { for (const k in obj) api.set(k, obj[k], { ...opts, now: false }); persist(); },
+    onChange: fn => listeners.push(fn),
+    hash: query, flush: persist,
+    shareURL: () => { persist(); return location.href.split("#")[0] + query(); },
+    reset() { for (const c of ctrls) api.set(c.key, c.type === "seed" ? Kit.newSeed() : c.default, { reset: true }); persist(); },
+    clearStorage() { try { localStorage.removeItem(storeKey); } catch (_) {} },
+  };
+  addEventListener("hashchange", () => {
+    if (location.hash === wrote) return;
+    const h = new URLSearchParams(location.hash.slice(1));
+    for (const c of ctrls) if (h.has(c.key)) api.set(c.key, h.get(c.key), { fromHash: true });
+  });
+  setTimeout(persist, 0);
+  return api;
+};
+
+/* ---- kit: 30-keys.js ---- */
+/* keys: shortcut registry + help overlay ("?" toggles, Esc closes). Shortcuts are ignored while typing in form fields. */
+Kit.keys = (() => {
+  const list = []; let help = null;
+  const name = k => k === " " ? "Space" : k.length === 1 ? k.toUpperCase() : k;
+  function add(key, desc, fn) { const i = list.findIndex(x => x.key === key); const it = { key, desc, fn }; if (i >= 0) list[i] = it; else list.push(it); }
+  function build() {
+    const rows = [...list.map(x => [name(x.key), x.desc]), ["?", "Show / hide this help"], ["Esc", "Close help"]];
+    const close = Kit.el("button", { class: "wt-close", "aria-label": "Close help", onclick: () => toggleHelp(false), text: "×" });
+    const tbl = Kit.el("table", {}, ...rows.map(([k, d]) => Kit.el("tr", {}, Kit.el("td", {}, Kit.el("kbd", { text: k })), Kit.el("td", { text: d }))));
+    help = Kit.el("div", { id: "wt-help", role: "dialog", "aria-modal": "true", "aria-label": "Keyboard shortcuts", hidden: true },
+      Kit.el("div", { class: "wt-card" }, Kit.el("h2", { text: "Keyboard shortcuts" }), close, tbl));
+    help.addEventListener("click", e => { if (e.target === help) toggleHelp(false); });
+    document.body.append(help);
+  }
+  function toggleHelp(show) {
+    if (help) help.remove(); const was = help && !help.hidden; build();   // rebuilt each time so late registrations show up
+    help.hidden = !(show === undefined ? !was : show);
+    if (!help.hidden) help.querySelector(".wt-close").focus();
+  }
+  const typing = t => t && t.closest && t.closest("input:not([type=range]):not([type=color]), select, textarea, [contenteditable]");
+  addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Escape" && help && !help.hidden) { toggleHelp(false); return; }
+    if (typing(e.target)) return;
+    if (e.key === "?") { e.preventDefault(); toggleHelp(); return; }
+    const k = e.key === " " || e.code === "Space" ? " " : e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const it = list.find(x => x.key === k); if (!it) return;
+    e.preventDefault(); if (!e.repeat) it.fn(e);
+  });
+  addEventListener("keyup", e => { if (e.code === "Space" && !typing(e.target)) e.preventDefault(); });
+  return { add, list, toggleHelp, get helpOpen() { return !!help && !help.hidden; } };
+})();
+
+/* ---- kit: 40-pointer.js ---- */
+/* pointer: unified mouse/touch/pen with multi-touch. Each pointer: {id, type, down, x, y (CSS px), cx, cy (canvas px), t0, gesture}.
+   Handlers: down(p), move(p), up(p), tap(p) (short press with little movement), pinch(g) (two fingers: {scale, dx, dy, cx, cy} in canvas px,
+   relative to the previous move). Once a second finger lands, every pressed pointer gets p.gesture = true (no taps; apps should ignore them
+   for drags) and down(p) of the new finger is not sent. Mouse hover is tracked as down=false. */
+Kit.pointer = function (el, h = {}) {
+  const active = new Map(); let g = null;   // g: last two-finger {d, mx, my} in canvas px
+  const two = () => { const ps = [...active.values()].filter(q => q.down && q.gesture).slice(0, 2); if (ps.length < 2) return null;
+    return { d: Math.hypot(ps[0].cx - ps[1].cx, ps[0].cy - ps[1].cy) || 1, mx: (ps[0].cx + ps[1].cx) / 2, my: (ps[0].cy + ps[1].cy) / 2 }; };
+  const pos = e => { const r = el.getBoundingClientRect(), sx = el.width / (r.width || 1), sy = el.height / (r.height || 1), x = e.clientX - r.left, y = e.clientY - r.top; return { x, y, cx: x * sx, cy: y * sy }; };
+  el.style.touchAction = "none";
+  el.addEventListener("pointerdown", e => {
+    const p = { id: e.pointerId, type: e.pointerType, down: true, ...pos(e), t0: performance.now() }; p.x0 = p.x; p.y0 = p.y;
+    active.set(e.pointerId, p); try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    const pressed = [...active.values()].filter(q => q.down);
+    if (pressed.length >= 2) { for (const q of pressed) { if (!q.gesture && q !== p) { q.gesture = true; h.cancel && h.cancel(q, e); } q.gesture = true; } g = two(); return; }
+    h.down && h.down(p, e);
+  });
+  el.addEventListener("pointermove", e => {
+    let p = active.get(e.pointerId);
+    if (!p) { if (e.pointerType !== "mouse") return; p = { id: e.pointerId, type: "mouse", down: false, ...pos(e) }; active.set(e.pointerId, p); }
+    else Object.assign(p, pos(e));
+    if (p.gesture) { const n = two(); if (n && g && h.pinch) h.pinch({ scale: n.d / g.d, dx: n.mx - g.mx, dy: n.my - g.my, cx: n.mx, cy: n.my }); if (n) g = n; return; }
+    h.move && h.move(p, e);
+  });
+  const end = (e, cancel) => {
+    const p = active.get(e.pointerId); if (!p) return; Object.assign(p, pos(e));
+    if (p.gesture) { active.delete(e.pointerId); g = two(); return; }
+    if (p.down && !cancel && performance.now() - p.t0 < 350 && Math.hypot(p.x - p.x0, p.y - p.y0) < 12) h.tap && h.tap(p, e);
+    h.up && h.up(p, e);
+    if (p.type === "mouse" && !cancel) p.down = false; else active.delete(e.pointerId);
+  };
+  el.addEventListener("pointerup", e => end(e, false));
+  el.addEventListener("pointercancel", e => end(e, true));
+  el.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") active.delete(e.pointerId); });
+  return { active, get list() { return [...active.values()]; }, get pressed() { return [...active.values()].filter(p => p.down); } };
+};
+
+/* ---- kit: 50-audio.js ---- */
+/* audio: Web Audio unlock helper. The AudioContext is created/resumed inside the first user gesture
+   (pointerdown/keydown/touchend, capture phase) so browsers' autoplay rules are satisfied.
+   beep() = one oscillator; thump() = pitched impact (sine glide + low-passed noise burst); play(build) = any graph:
+   build(ctx, out, t) wires nodes into `out` starting at time t and returns their duration (s). At most A.maxVoices overlap
+   (extra sounds are dropped and counted in A.dropped); A.muted silences everything. */
+Kit.audio = (() => {
+  let ctx = null, master = null, noiseBuf = null, voices = []; const A = { played: 0, dropped: 0, maxVoices: 8, muted: false };
+  function ensure() {
+    if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.6; master.connect(ctx.destination); }
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    return ctx;
+  }
+  function unlock() {
+    if (!ensure()) return;
+    const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);   // iOS needs a played buffer
+  }
+  for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, unlock, { capture: true, passive: true });
+  A.play = (build, { when = 0 } = {}) => {
+    if (A.muted) return false; const c = ctx || ensure(); if (!c) return false;
+    const go = () => {
+      const now = c.currentTime; voices = voices.filter(end => end > now);
+      if (voices.length >= A.maxVoices) { A.dropped++; return; }
+      const dur = +build(c, master, now + when) || 0.3; voices.push(now + when + dur); A.played++;
+    };
+    if (c.state === "running") { go(); return true; }
+    if (c.state === "closed") return false;
+    c.resume().then(() => { if (c.state === "running") go(); }).catch(() => {});   // context made in this gesture may still be resuming
+    return true;
+  };
+  const env = (c, t, gain, dur, attack = 0.005) => { const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); return g; };
+  A.beep = ({ freq = 440, dur = 0.12, type = "sine", gain = 0.3, when = 0, glide = 0 } = {}) => A.play((c, out, t) => {
+    const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t); if (glide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * glide), t + dur);
+    o.connect(env(c, t, gain, dur)).connect(out); o.start(t); o.stop(t + dur + 0.02); return dur + 0.02;
+  }, { when });
+  A.noise = () => { if (!noiseBuf && ctx) { noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d = noiseBuf.getChannelData(0); let s = 12345; for (let i = 0; i < d.length; i++) { s = (s * 1103515245 + 12345) >>> 0; d[i] = s / 2147483648 - 1; } } return noiseBuf; };
+  A.thump = ({ freq = 120, dur = 0.35, gain = 0.3, noise = 0.6, glide = 0.5, when = 0, pan = 0 } = {}) => A.play((c, out, t) => {
+    const dest = c.createStereoPanner ? c.createStereoPanner() : c.createGain(); if (dest.pan) dest.pan.value = Kit.clamp(pan, -1, 1); dest.connect(out);
+    const o = c.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * glide), t + dur);
+    o.connect(env(c, t, gain, dur, 0.004)).connect(dest); o.start(t); o.stop(t + dur + 0.02);
+    if (noise > 0) {
+      const n = c.createBufferSource(), f = c.createBiquadFilter(); n.buffer = A.noise(); f.type = "lowpass"; f.frequency.value = Math.min(8000, freq * 6); f.Q.value = 0.7;
+      n.connect(f).connect(env(c, t, gain * noise, dur * 0.6, 0.002)).connect(dest); n.start(t, Math.random() * 0.5); n.stop(t + dur);
+    }
+    return dur + 0.02;
+  }, { when });
+  A.unlock = unlock; A.ensure = ensure;
+  Object.defineProperties(A, { ctx: { get: () => ctx }, master: { get: () => master }, state: { get: () => ctx ? ctx.state : "none" },
+    voices: { get: () => ctx ? voices.filter(end => end > ctx.currentTime).length : 0 } });
+  return A;
+})();
+
+/* ---- kit: 60-loop.js ---- */
+/* loop: requestAnimationFrame loop with FPS meter, pause, and an adaptive-quality hook.
+   onQuality(q, dir) is called with q in [minQuality, 1] when FPS stays below lowFps (2 s) or above highFps (3 s). */
+Kit.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+Kit.loop = function (frame, opts = {}) {
+  let running = false, paused = false, last = 0, frames = 0, fpsT = 0, fps = 0, slow = 0, fast = 0, raf = 0;
+  const L = { quality: 1, minQuality: opts.minQuality ?? 0.3, frames: 0 };
+  function tick(t) {
+    raf = requestAnimationFrame(tick);
+    const dt = Math.min(0.1, Math.max(0, (t - last) / 1000)); last = t; frames++;
+    if (t - fpsT >= 1000) { fps = frames * 1000 / (t - fpsT); frames = 0; fpsT = t; adapt(); opts.onFps && opts.onFps(fps); }
+    if (!paused) { L.frames++; frame(dt, t / 1000); }
+  }
+  function adapt() {
+    if (paused || document.hidden || !opts.onQuality) return;
+    const lo = opts.lowFps || 45, hi = opts.highFps || 57;
+    if (fps < lo) { fast = 0; if (++slow >= 2) { slow = 0; const q = Math.max(L.minQuality, +(L.quality * 0.8).toFixed(3)); if (q !== L.quality) { L.quality = q; opts.onQuality(q, "down"); } } }
+    else if (fps > hi) { slow = 0; if (++fast >= 3) { fast = 0; const q = Math.min(1, +(L.quality * 1.15).toFixed(3)); if (q !== L.quality) { L.quality = q; opts.onQuality(q, "up"); } } }
+    else slow = fast = 0;
+  }
+  L.start = () => { if (running) return; running = true; last = performance.now(); fpsT = last; raf = requestAnimationFrame(tick); };
+  L.stop = () => { running = false; cancelAnimationFrame(raf); };
+  L.pause = v => { paused = v === undefined ? !paused : !!v; opts.onPause && opts.onPause(paused); return paused; };
+  L.step = (dt = 1 / 60) => frame(dt, performance.now() / 1000);
+  Object.defineProperties(L, { fps: { get: () => fps }, paused: { get: () => paused }, running: { get: () => running } });
+  return L;
+};
+
+/* ---- kit: 70-view.js ---- */
+/* view: full-window canvas sized for devicePixelRatio (capped at maxDpr and maxPixels), with a quality scale */
+Kit.view = function (canvas, opts = {}) {
+  const maxDpr = opts.maxDpr || 2, maxPx = opts.maxPixels || 4.2e6;
+  const v = { canvas, ctx: canvas.getContext && canvas.getContext("2d", { alpha: false }), W: 0, H: 0, dpr: 1, cssW: 0, cssH: 0, scale: 1 };
+  v.fit = () => {
+    const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
+    let d = Math.min(window.devicePixelRatio || 1, maxDpr);
+    if (w * h * d * d > maxPx) d = Math.sqrt(maxPx / (w * h));
+    d *= v.scale; v.dpr = d; v.cssW = w; v.cssH = h;
+    canvas.width = Math.max(1, Math.round(w * d)); canvas.height = Math.max(1, Math.round(h * d)); v.W = canvas.width; v.H = canvas.height;
+  };
+  let t = 0; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { v.fit(); opts.onResize && opts.onResize(v); }, 120); });
+  v.fit(); return v;
+};
+/* export: PNG of a canvas, and an offscreen high-res render hook */
+Kit.toBlob = cv => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("toBlob failed")), "image/png"));
+Kit.savePNG = async (cv, name) => { const b = await Kit.toBlob(cv); Kit.download(b, name); return b; };
+Kit.renderHiRes = async (w, h, draw, name) => {
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d", { alpha: false }); await draw(ctx, w, h);
+  const b = await Kit.toBlob(cv); if (name) Kit.download(b, name); return b;
+};
+
+/* ---- kit: 80-panel.js ---- */
+/* panel: collapsible settings panel built from CONFIG.controls.
+   types: range {min,max,step,unit}, select {options, labels?: {value: "Shown name"}}, toggle, palette (CONFIG.palettes), color, seed (shown read-only; Randomize changes it) */
+Kit.panel = function (state, config) {
+  const decimals = s => { const t = String(s || 1); return t.includes(".") ? t.split(".")[1].length : 0; };
+  const toggle = Kit.el("button", { id: "wt-toggle", "aria-label": "Show settings", "aria-expanded": "false", "aria-controls": "wt-panel", title: "Settings (H)", text: "⚙" });
+  const body = Kit.el("div", { class: "wt-controls" }), acts = Kit.el("div", { class: "wt-actions" }), status = Kit.el("div", { id: "wt-status", "aria-live": "polite" });
+  const panel = Kit.el("section", { id: "wt-panel", "aria-label": "Settings", hidden: true },
+    Kit.el("h1", { text: config.title || "Settings" }), body, acts, status, Kit.el("div", { class: "wt-hint", html: "Press <kbd>?</kbd> for keyboard shortcuts" }));
+  document.body.append(toggle, panel);
+  const P = { el: panel, toggleBtn: toggle, status };
+  P.open = () => { panel.hidden = false; toggle.setAttribute("aria-expanded", "true"); toggle.setAttribute("aria-label", "Hide settings"); };
+  P.close = () => { panel.hidden = true; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-label", "Show settings"); };
+  P.toggle = () => (panel.hidden ? P.open() : P.close());
+  toggle.addEventListener("click", P.toggle);
+  const sync = {};
+  for (const c of state.controls) {
+    const id = "wt-" + c.key, label = c.label || c.key;
+    if (c.type === "range") {
+      const inp = Kit.el("input", { id, type: "range", min: c.min, max: c.max, step: c.step || "any" }), out = Kit.el("output", { for: id });
+      inp.addEventListener("input", () => state.set(c.key, +inp.value));
+      sync[c.key] = v => { inp.value = v; out.textContent = (+v).toFixed(decimals(c.step)) + (c.unit || ""); };
+      body.append(Kit.el("div", { class: "wt-row" }, Kit.el("label", { for: id, text: label }), inp, out));
+    } else if (c.type === "select") {
+      const s = Kit.el("select", { id }, ...c.options.map(o => Kit.el("option", { value: String(o), text: (c.labels && c.labels[o]) || String(o) })));
+      s.addEventListener("change", () => state.set(c.key, s.value));
+      sync[c.key] = v => { s.value = String(v); };
+      body.append(Kit.el("div", { class: "wt-row wt-row2" }, Kit.el("label", { for: id, text: label }), s));
+    } else if (c.type === "toggle") {
+      const b = Kit.el("button", { id, class: "wt-switch", "aria-pressed": "false", text: label });
+      b.addEventListener("click", () => state.set(c.key, !state.get(c.key)));
+      sync[c.key] = v => b.setAttribute("aria-pressed", String(!!v));
+      body.append(Kit.el("div", { class: "wt-row1" }, b));
+    } else if (c.type === "palette") {
+      const lab = Kit.el("div", { class: "wt-lab", id: id + "-lab", text: label }), g = Kit.el("div", { class: "wt-pals", id, role: "group", "aria-labelledby": id + "-lab" });
+      for (const [name, p] of Object.entries(config.palettes || {})) {
+        const b = Kit.el("button", { "data-v": name, "aria-label": `${label} ${name}`, "aria-pressed": "false" },
+          Kit.el("span", { class: "wt-sw", style: `background:linear-gradient(90deg,${p.colors.join(",")})` }), Kit.el("span", { text: name }));
+        b.addEventListener("click", () => state.set(c.key, name)); g.append(b);
+      }
+      sync[c.key] = v => { for (const b of g.children) b.setAttribute("aria-pressed", String(b.dataset.v === v)); };
+      body.append(Kit.el("div", { class: "wt-sec" }, lab, g));
+    } else if (c.type === "color") {
+      const inp = Kit.el("input", { id, type: "color" });
+      inp.addEventListener("input", () => state.set(c.key, inp.value));
+      sync[c.key] = v => { inp.value = v; };
+      body.append(Kit.el("div", { class: "wt-row wt-row2" }, Kit.el("label", { for: id, text: label }), inp));
+    } else if (c.type === "seed") {
+      const out = Kit.el("output", { id, "aria-label": label });
+      sync[c.key] = v => { out.textContent = v; };
+      body.append(Kit.el("div", { class: "wt-row wt-row2" }, Kit.el("span", { class: "wt-lab2", text: label }), out));
+    }
+  }
+  state.onChange((k, v) => sync[k] && sync[k](v));
+  for (const k in sync) sync[k](state.get(k));
+  P.action = (id, label, fn, opts = {}) => { const b = Kit.el("button", { id: "wt-act-" + id, text: label, title: opts.title }); b.addEventListener("click", fn); acts.append(b); return b; };
+  P.setStatus = t => { status.textContent = t; };
+  return P;
+};
+
+/* ---- kit: 90-app.js ---- */
+/* app: wires everything together. Kit.app({ setup, frame, resize, tap, down, move, up, cancel, pinch, change, randomize, render, quality, status,
+   actions: [{id, label, key?, desc?, fn(t)}] (extra panel buttons + shortcuts), debug(t) -> object exposed as TOY.app for tests, allowMotion }).
+   Each hook receives the toy object t: {canvas, ctx, W, H, dpr, s (settings), state, colors, bg, rng, noise, pointer, audio, loop, panel, toast}.
+   Standard actions: Pause (Space), Randomize (R, if a seed control exists), Save PNG (S), Hi-res PNG (W, if render), Copy link (L),
+   Reset, settings panel (H), FPS badge (F), help (?). Exposes window.TOY for tests. */
+Kit.normPalettes = config => {
+  const out = {};
+  for (const [k, p] of Object.entries(config.palettes || {})) out[k] = Array.isArray(p) ? { bg: "#0b0b12", colors: p } : { bg: p.bg || "#0b0b12", colors: p.colors || [] };
+  config.palettes = out; return out;
+};
+Kit.app = function (def) {
+  const config = CONFIG; Kit.normPalettes(config);
+  const canvas = document.getElementById("stage");
+  const t = { config, def };
+  const view = Kit.view(canvas, { onResize: () => { def.resize && def.resize(t); } });
+  if (!view.ctx) { document.body.append(Kit.el("p", { class: "wt-fallback", text: "Sorry, this browser has no Canvas 2D support." })); return null; }
+  const state = Kit.state(config);
+  const palKey = (config.controls || []).find(c => c.type === "palette")?.key, seedKey = (config.controls || []).find(c => c.type === "seed")?.key;
+  Object.assign(t, { canvas, view, state, s: state.values, audio: Kit.audio, toast: Kit.toast, keys: Kit.keys, reducedMotion: Kit.reducedMotion, taps: 0 });
+  Object.defineProperties(t, {
+    ctx: { get: () => view.ctx }, W: { get: () => view.W }, H: { get: () => view.H }, dpr: { get: () => view.dpr },
+    colors: { get: () => palKey ? config.palettes[state.values[palKey]].colors : ["#7b6cff", "#2ad1ff", "#3cffb4", "#ffd36b", "#ff5e8a"] },
+    bg: { get: () => palKey ? config.palettes[state.values[palKey]].bg : "#0b0b12" },
+  });
+  t.reseed = () => { const sd = seedKey ? state.values[seedKey] : 1; t.rng = Kit.rng(sd); t.noise = Kit.noise(sd); };
+  t.reseed();
+  t.pointer = Kit.pointer(canvas, {
+    tap: p => { t.taps++; def.tap && def.tap(t, p); }, down: p => def.down && def.down(t, p), move: p => def.move && def.move(t, p), up: p => def.up && def.up(t, p),
+    cancel: p => def.cancel && def.cancel(t, p), pinch: g => def.pinch && def.pinch(t, g),
+  });
+  let fpsBadge = null;
+  const status = () => {
+    const q = t.loop.quality, fps = Math.round(t.loop.fps);
+    t.panel.setStatus(`${fps || "–"} fps · quality ${Math.round(q * 100)}%${def.status ? " · " + def.status(t) : ""}${t.loop.paused ? " · paused" : ""}`);
+    if (fpsBadge) fpsBadge.textContent = `${fps || "–"} fps`;
+  };
+  t.loop = Kit.loop(dt => def.frame(t, dt), {
+    onFps: status,
+    onQuality: (q, dir) => { if (def.quality) def.quality(t, q, dir); else { view.scale = Math.max(0.5, Math.sqrt(q)); view.fit(); def.resize && def.resize(t); } status(); },
+    onPause: p => { const b = document.getElementById("wt-act-pause"); if (b) { b.textContent = p ? "Play" : "Pause"; b.setAttribute("aria-pressed", String(p)); } status(); },
+  });
+  t.panel = Kit.panel(state, config);
+  const act = (id, label, key, desc, fn) => { t.panel.action(id, label, fn); if (key) Kit.keys.add(key, desc, fn); };
+  act("pause", "Pause", " ", "Pause / play", () => t.loop.pause());
+  document.getElementById("wt-act-pause").setAttribute("aria-pressed", "false");
+  if (seedKey || def.randomize) act("random", "Randomize", "r", "Randomize (new seed)", () => { if (def.randomize) def.randomize(t); else state.set(seedKey, Kit.newSeed(), { now: true }); Kit.toast("Randomized"); });
+  const base = (config.id || "webtoy") + (seedKey ? "-" + state.values[seedKey] : "");
+  t.save = async () => { const b = await Kit.savePNG(canvas, `${base}.png`); Kit.toast(`Saved PNG ${canvas.width}×${canvas.height}`); return b; };
+  act("save", "Save PNG", "s", "Save the canvas as PNG", () => t.save());
+  const [hw, hh] = config.hires || [2560, 1440];
+  t.hiRes = (w = hw, h = hh, name) => Kit.renderHiRes(w, h, (ctx, W, H) => def.render(t, ctx, W, H), name);
+  if (def.render) act("hires", `PNG ${hw}×${hh}`, "w", `Render a ${hw}×${hh} PNG offscreen`, async () => { Kit.toast("Rendering…", 4000); await t.hiRes(hw, hh, `${base}-${hw}x${hh}.png`); Kit.toast("High-res PNG saved"); });
+  act("share", "Copy link", "l", "Copy a share link (settings in the URL)", async () => {
+    const u = state.shareURL(); try { await navigator.clipboard.writeText(u); Kit.toast("Link copied"); } catch (_) { prompt("Copy this link:", u); } });
+  for (const a of def.actions || []) act(a.id, a.label, a.key, a.desc || a.label, () => a.fn(t));
+  act("reset", "Reset", null, null, () => { state.reset(); Kit.toast("Reset to defaults"); });
+  Kit.keys.add("h", "Show / hide settings", () => t.panel.toggle());
+  Kit.keys.add("f", "Show / hide FPS meter", () => {
+    if (fpsBadge) { fpsBadge.remove(); fpsBadge = null; } else { fpsBadge = Kit.el("div", { id: "wt-fps", "aria-hidden": "true" }); document.body.append(fpsBadge); status(); } });
+  state.onChange((k, v, o) => { if (k === seedKey) t.reseed(); def.change && def.change(t, k, v, o); });
+  def.setup && def.setup(t);
+  if (Kit.reducedMotion && !def.allowMotion) { def.frame(t, 1 / 60); t.loop.pause(true); Kit.toast("Reduced motion: paused. Press Space or Play to animate.", 5000); }
+  t.loop.start(); status();
+  const small = (n = 32) => { const c = Kit.el("canvas", { width: n, height: n }), g = c.getContext("2d"); g.drawImage(canvas, 0, 0, n, n); return g.getImageData(0, 0, n, n).data; };
+  window.TOY = {
+    toy: t, state, loop: t.loop, panel: t.panel, keys: Kit.keys, audio: Kit.audio, config,
+    get taps() { return t.taps; }, get fps() { return Math.round(t.loop.fps); },
+    sig() { const d = small(); let h = 2166136261; for (let i = 0; i < d.length; i += 4) h = Math.imul(h ^ (d[i] + 7 * d[i + 1] + 13 * d[i + 2]), 16777619); return (h >>> 0).toString(16); },
+    meanColor() { const d = small(48); let r = 0, g = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } const n = d.length / 4; return { r: r / n, g: g / n, b: b / n }; },
+    exportBlob: () => Kit.toBlob(canvas),
+    hiResBlob: (w, h) => def.render ? t.hiRes(w, h) : Promise.reject(new Error("no render() hook")),
+    app: def.debug ? def.debug(t) : undefined,
+  };
+  return t;
+};
+
+/* ---------------- app ---------------- */
+// Gravity Sandbox: n-body toy on the webtoy kit. Kick-drift-kick leapfrog, Plummer softening, momentum-conserving merges.
+// Units: G = 1 (times the Gravity slider), sim time advances RATE units per second at Time speed 1.
+const EPS = 0.01, EPS2 = EPS * EPS, H0 = 0.002, RATE = 0.6, LIGHT = 1e-4, STAR = 0.05, RMAX = 30, TRAILMAX = 400;
+const radius = m => 0.035 * Math.cbrt(m);
+let B = [], cam = { x: 0, y: 0, z: 1 }, drag = null, flashes = [], sprites = {}, field = null, cap = 600, qual = 1;
+let merges = 0, sounds = 0, lastSound = 0, simTime = 0, nextId = 1;
+const G = t => t.s.gravity;
+
+function body(x, y, vx, vy, m, c) {
+  return { id: nextId++, x, y, vx, vy, ax: 0, ay: 0, m, r: radius(m), c, light: m < LIGHT, pinned: false,
+           tr: new Float32Array(TRAILMAX * 2), ti: 0, tn: 0 };
+}
+// ---- physics -------------------------------------------------------------------------------------------------------------
+function accel(g, collide, hits) {   // symmetric pair forces (light-light pairs skipped both ways, so momentum stays exact)
+  const n = B.length;
+  for (let i = 0; i < n; i++) { B[i].ax = 0; B[i].ay = 0; }
+  for (let i = 0; i < n; i++) {
+    const a = B[i];
+    for (let j = i + 1; j < n; j++) {
+      const b = B[j]; if (a.light && b.light) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, r2 = dx * dx + dy * dy, s2 = r2 + EPS2, inv = g / (s2 * Math.sqrt(s2));
+      a.ax += dx * inv * b.m; a.ay += dy * inv * b.m; b.ax -= dx * inv * a.m; b.ay -= dy * inv * a.m;
+      if (collide) { const rr = (a.r + b.r) * 0.8; if (r2 < rr * rr) hits.push(a, b); }
+    }
+  }
+}
+function merge(t, a, b) {   // b into a (heavier survives): conserve mass + momentum, centre of mass position
+  if (b.m > a.m) [a, b] = [b, a];
+  const M = a.m + b.m, vrel = Math.hypot(a.vx - b.vx, a.vy - b.vy);
+  a.x = (a.x * a.m + b.x * b.m) / M; a.y = (a.y * a.m + b.y * b.m) / M;
+  a.vx = (a.vx * a.m + b.vx * b.m) / M; a.vy = (a.vy * a.m + b.vy * b.m) / M;
+  a.m = M; a.r = radius(M); a.light = M < LIGHT; a.pinned = a.pinned || b.pinned; b.dead = true; merges++;
+  if (!b.light || flashes.length < 12) flashes.push({ x: a.x, y: a.y, r: a.r, age: 0, life: b.light ? 0.35 : 0.8, c: a.c, k: b.light ? 0.4 : Math.min(1.5, 0.5 + Math.cbrt(b.m / 0.003) * 0.3) });
+  impact(t, a, b, M, vrel);
+  return a;
+}
+function impact(t, a, b, M, vrel) {
+  if (!t.s.sound || t.audio.state === "none") return;
+  const now = performance.now(); if (now - lastSound < 45) return;
+  if (b.light && Math.random() > 0.15) return;                       // galaxy dust: occasional soft ticks only
+  lastSound = now; sounds++;
+  const freq = Math.max(45, Math.min(1100, 140 * Math.pow(M, -0.22)));
+  const gain = (b.light ? 0.05 : 0.1 + 0.22 * Math.min(1, vrel / 2) * Math.min(1, Math.cbrt(b.m / a.m) * 1.5)) ;
+  const sx = W2S(t, a.x, a.y)[0] / (t.W || 1) * 2 - 1;
+  t.audio.thump({ freq, dur: 0.25 + 0.35 * Math.min(1, Math.cbrt(M)), gain, noise: b.light ? 0.2 : 0.6, pan: Math.max(-0.8, Math.min(0.8, sx)) });
+}
+function stepOnce(t, h) {
+  const g = G(t), collide = t.s.collide;
+  for (const b of B) if (!b.pinned) { b.vx += b.ax * h * 0.5; b.vy += b.ay * h * 0.5; b.x += b.vx * h; b.y += b.vy * h; }
+  const hits = []; accel(g, collide, hits);
+  for (const b of B) if (!b.pinned) { b.vx += b.ax * h * 0.5; b.vy += b.ay * h * 0.5; } else { b.vx = 0; b.vy = 0; }
+  simTime += h;
+  if (hits.length) {
+    for (let i = 0; i < hits.length; i += 2) { let a = hits[i], b = hits[i + 1]; while (a.dead) a = a.into; while (b.dead) b = b.into; if (a === b) continue; const s = merge(t, a, b); (s === a ? b : a).into = s; }
+    B = B.filter(b => !b.dead); accel(g, false, []);
+  }
+}
+function prune() {
+  let changed = false;
+  for (const b of B) if (!b.pinned && (b.x * b.x + b.y * b.y > RMAX * RMAX || !isFinite(b.x))) { b.dead = true; changed = true; }
+  if (B.length > cap) { const keep = [...B].sort((p, q) => q.m - p.m).slice(cap); for (const b of keep) b.dead = true; changed = true; }
+  if (changed) B = B.filter(b => !b.dead);
+  return changed;
+}
+function energy(t) {
+  const g = G(t); let k = 0, u = 0;
+  for (const b of B) k += 0.5 * b.m * (b.vx * b.vx + b.vy * b.vy);
+  for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) { const a = B[i], b = B[j]; if (a.light && b.light) continue;
+    u -= g * a.m * b.m / Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + EPS2); }
+  return { kinetic: k, potential: u, total: k + u };
+}
+const momentum = () => { let px = 0, py = 0, L = 0, m = 0; for (const b of B) { px += b.m * b.vx; py += b.m * b.vy; L += b.m * (b.x * b.vy - b.y * b.vx); m += b.m; } return { px, py, L, mass: m }; };
+function zeroMomentum() {   // shift to the centre-of-mass frame (presets start with zero net momentum, centred)
+  const p = momentum(); if (!p.mass) return; let cx = 0, cy = 0; for (const b of B) { cx += b.m * b.x; cy += b.m * b.y; }
+  for (const b of B) { b.vx -= p.px / p.mass; b.vy -= p.py / p.mass; b.x -= cx / p.mass; b.y -= cy / p.mass; }
+}
+// ---- presets --------------------------------------------------------------------------------------------------------------
+const circ = (g, M, r) => Math.sqrt(g * M * r * r / Math.pow(r * r + EPS2, 1.5));
+function orbiter(t, cx, cy, cvx, cvy, M, r, m, c, ccw = 1) {
+  const a = t.rng() * Math.PI * 2, v = circ(G(t), M, r) * ccw;
+  return body(cx + Math.cos(a) * r, cy + Math.sin(a) * r, cvx - Math.sin(a) * v, cvy + Math.cos(a) * v, m, c);
+}
+const PRESETS = {
+  binary(t) {   // two equal stars on a softened circular orbit + circumbinary planets
+    const g = G(t), m = 0.5, d = 0.6, F = g * m * m * d / Math.pow(d * d + EPS2, 1.5), v = Math.sqrt(F * (d / 2) / m), nc = t.colors.length;
+    B.push(body(-d / 2, 0, 0, -v, m, nc - 1), body(d / 2, 0, 0, v, m, 0));
+    [1.1, 1.45, 1.8].forEach((r, i) => B.push(orbiter(t, 0, 0, 0, 0, 1, r, 0.001 + i * 0.0005, (i + 1) % nc)));
+  },
+  solar(t) {
+    const nc = t.colors.length; B.push(body(0, 0, 0, 0, 1, nc - 1));
+    [[0.28, 0.0006], [0.42, 0.0015], [0.6, 0.002], [0.85, 0.006], [1.15, 0.004], [1.5, 0.0012]].forEach(([r, m], i) => B.push(orbiter(t, 0, 0, 0, 0, 1, r, m, i % (nc - 1))));
+    const host = B[4]; B.push(orbiter(t, host.x, host.y, host.vx, host.vy, host.m, 0.07, 0.00012, 2 % nc));   // a moon
+  },
+  figure8(t) {   // Chenciner–Montgomery choreography (G = m = 1), velocities scaled by sqrt(G)
+    const s = Math.sqrt(G(t)), x = 0.97000436, y = -0.24308753, vx = -0.93240737 * s, vy = -0.86473146 * s;
+    B.push(body(x, y, -vx / 2, -vy / 2, 1, 0), body(-x, -y, -vx / 2, -vy / 2, 1, 1 % t.colors.length), body(0, 0, vx, vy, 1, 2 % t.colors.length));
+  },
+  galaxy(t) {   // central mass + disk of light test bodies on circular orbits, plus a heavy companion to stir up arms
+    const nc = t.colors.length, n = Math.max(40, Math.min(320, cap - 20)); B.push(body(0, 0, 0, 0, 1, nc - 1));
+    for (let i = 0; i < n; i++) { const r = 0.22 + Math.pow(t.rng(), 0.8) * 1.6; B.push(orbiter(t, 0, 0, 0, 0, 1, r, 2e-5, Math.min(nc - 2, Math.floor(r / 1.82 * (nc - 1))))); }
+    B.push(body(2.3, 0, 0, circ(G(t), 1, 2.3) * 0.75, 0.06, nc - 2));
+  },
+  chaos(t) {
+    const r = t.rng, nc = t.colors.length, n = r.int(10, 18);
+    for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, d = 0.2 + r() * 1.3, m = Math.pow(r(), 3) * 0.3 + 0.004;
+      B.push(body(Math.cos(a) * d, Math.sin(a) * d, r.gauss() * 0.35 - Math.sin(a) * 0.3, r.gauss() * 0.35 + Math.cos(a) * 0.3, m, i % nc)); }
+  },
+};
+function loadPreset(t, name) {
+  t.reseed(); B = []; flashes = []; drag = null; simTime = 0; merges = 0; cam = { x: 0, y: 0, z: name === "galaxy" ? 0.85 : 1 };
+  (PRESETS[name] || PRESETS.solar)(t); zeroMomentum(); accel(G(t), false, []);
+}
+// ---- view -------------------------------------------------------------------------------------------------------------------
+const scaleOf = (t, W = t.W, H = t.H) => cam.z * Math.min(W, H) / 4;
+function W2S(t, x, y, W = t.W, H = t.H) { const S = scaleOf(t, W, H); return [W / 2 + (x - cam.x) * S, H / 2 + (y - cam.y) * S]; }
+function S2W(t, sx, sy) { const S = scaleOf(t); return [cam.x + (sx - t.W / 2) / S, cam.y + (sy - t.H / 2) / S]; }
+function zoomAt(t, k, sx, sy) { const [wx, wy] = S2W(t, sx, sy); cam.z = Math.max(0.08, Math.min(20, cam.z * k)); const [nx, ny] = S2W(t, sx, sy); cam.x += wx - nx; cam.y += wy - ny; }
+function makeSprites(t) {
+  sprites = {};
+  t.colors.forEach((col, i) => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.07, "rgba(255,255,255,0.9)"); gr.addColorStop(0.16, col); gr.addColorStop(0.4, col + "70"); gr.addColorStop(0.7, col + "1c"); gr.addColorStop(1, col + "00");
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64); sprites[i] = c; });
+}
+function drawStarfield(ctx, W, H, seed) {
+  const r = Kit.rng(seed), n = Math.round(W * H / 2600);
+  for (let i = 0; i < n; i++) { const b = Math.pow(r(), 3); ctx.globalAlpha = 0.15 + b * 0.75; ctx.fillStyle = b > 0.6 ? "#fff6e0" : "#cfd8ff";
+    const s = (0.5 + b * 1.4) * Math.max(1, Math.min(W, H) / 900); ctx.fillRect(r() * W, r() * H, s, s); }
+  ctx.globalAlpha = 1;
+}
+function buildField(t) { field = document.createElement("canvas"); field.width = t.W; field.height = t.H; drawStarfield(field.getContext("2d"), t.W, t.H, 7); }
+function predict(t) {   // trajectory preview: probe + the 10 heaviest bodies, coarse leapfrog
+  const [x0, y0] = S2W(t, drag.x0, drag.y0), [x1, y1] = S2W(t, drag.x, drag.y), v = flingVel(t);
+  const P = [...B].sort((a, b) => b.m - a.m).slice(0, 10).map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m, r: b.r }));
+  const pr = { x: x0, y: y0, vx: v[0], vy: v[1] }, pts = [], g = G(t), h = 0.006, all = [...P, pr];
+  const acc = () => { for (const a of all) { a.ax = 0; a.ay = 0; } for (let i = 0; i < all.length; i++) for (let j = 0; j < P.length; j++) { if (i === j) continue; const a = all[i], b = P[j];
+    const dx = b.x - a.x, dy = b.y - a.y, s2 = dx * dx + dy * dy + EPS2; const k = g * b.m / (s2 * Math.sqrt(s2)); a.ax += dx * k; a.ay += dy * k; } };
+  acc();
+  for (let s = 0; s < 320; s++) {
+    for (const a of all) { a.vx += a.ax * h / 2; a.vy += a.ay * h / 2; a.x += a.vx * h; a.y += a.vy * h; } acc(); for (const a of all) { a.vx += a.ax * h / 2; a.vy += a.ay * h / 2; }
+    if (s % 2 === 0) pts.push(pr.x, pr.y);
+    if (P.some(b => (b.x - pr.x) ** 2 + (b.y - pr.y) ** 2 < b.r * b.r)) { pts.push(pr.x, pr.y, NaN, NaN); break; }
+  }
+  return pts;
+}
+const flingVel = t => { const S = scaleOf(t); return [(drag.x - drag.x0) / S * 3, (drag.y - drag.y0) / S * 3]; };
+// ---- drawing ----------------------------------------------------------------------------------------------------------------
+function draw(t, ctx, W, H, hi) {
+  const S = scaleOf(t, W, H), u = Math.min(W, H) / 900, cols = t.colors, toS = (x, y) => [W / 2 + (x - cam.x) * S, H / 2 + (y - cam.y) * S];
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; ctx.fillStyle = t.bg; ctx.fillRect(0, 0, W, H);
+  if (t.s.stars) { if (hi) drawStarfield(ctx, W, H, 7); else { if (!field || field.width !== W || field.height !== H) buildField(t); ctx.drawImage(field, 0, 0); } }
+  ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const tl = Math.round(t.s.trail * (hi ? 1 : Math.min(1, 0.4 + qual * 0.6)));
+  if (tl > 1) for (const b of B) {   // trails: newest -> oldest in 5 bands of fading alpha
+    const n = Math.min(b.tn, b.light ? tl >> 1 : tl); if (n < 2) continue;
+    ctx.strokeStyle = cols[b.c % cols.length]; ctx.lineWidth = Math.max(0.6, (b.light ? 0.7 : 1.6) * u * (b.m >= STAR ? 1.6 : 1));
+    const bands = 5, per = Math.ceil(n / bands);
+    for (let k = 0; k < bands; k++) { const i0 = k * per, i1 = Math.min(n - 1, (k + 1) * per); if (i1 <= i0) break;
+      ctx.globalAlpha = (b.light ? 0.35 : 0.6) * (1 - k / bands) ** 1.6; ctx.beginPath();
+      for (let i = i0; i <= i1; i++) { const q = ((b.ti - 1 - i) % TRAILMAX + TRAILMAX) % TRAILMAX, [sx, sy] = toS(b.tr[q * 2], b.tr[q * 2 + 1]); i === i0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy); }
+      ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  for (const f of flashes) { const [sx, sy] = toS(f.x, f.y), p = f.age / f.life, R = (f.r * S + 6 * u) * (1 + p * 7 * f.k);
+    ctx.globalAlpha = (1 - p) ** 2 * 0.9; ctx.drawImage(sprites[f.c % cols.length], sx - R * 1.5, sy - R * 1.5, R * 3, R * 3);
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2 * u * (1 - p); ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.stroke(); }
+  for (const b of B) {
+    const [sx, sy] = toS(b.x, b.y), star = b.m >= STAR, rr = Math.max(b.light ? 0.9 * u : 2 * u, b.r * S), R = rr * (star ? 7 : b.light ? 3 : 4.5);
+    if (sx < -R || sy < -R || sx > W + R || sy > H + R) continue;
+    ctx.globalAlpha = b.light ? 0.75 : 1; ctx.drawImage(sprites[b.c % cols.length], sx - R, sy - R, R * 2, R * 2);
+    if (!b.light) { ctx.globalAlpha = star ? 0.95 : 0.8; ctx.fillStyle = star ? "#fffaf0" : "#ffffff"; ctx.beginPath(); ctx.arc(sx, sy, rr * (star ? 0.8 : 0.55), 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  if (drag && drag.mode === "fling" && !hi) {   // aim line + predicted path
+    ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 2 * u; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(drag.x0, drag.y0); ctx.lineTo(drag.x, drag.y); ctx.stroke();
+    const a = Math.atan2(drag.y - drag.y0, drag.x - drag.x0), hl = 10 * u; ctx.beginPath(); ctx.moveTo(drag.x, drag.y);
+    ctx.lineTo(drag.x - Math.cos(a - 0.4) * hl, drag.y - Math.sin(a - 0.4) * hl); ctx.moveTo(drag.x, drag.y); ctx.lineTo(drag.x - Math.cos(a + 0.4) * hl, drag.y - Math.sin(a + 0.4) * hl); ctx.stroke();
+    const pts = drag.path || []; ctx.setLineDash([3 * u, 6 * u]); ctx.lineWidth = 1.5 * u;
+    for (let i = 2; i < pts.length; i += 2) { if (isNaN(pts[i])) { const [sx, sy] = toS(pts[i - 2], pts[i - 1]); ctx.setLineDash([]); ctx.strokeStyle = "rgba(255,120,120,0.9)"; ctx.beginPath(); ctx.arc(sx, sy, 6 * u, 0, Math.PI * 2); ctx.stroke(); break; }
+      const [ax, ay] = toS(pts[i - 2], pts[i - 1]), [bx, by] = toS(pts[i], pts[i + 1]); ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - i / pts.length)})`; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+    ctx.setLineDash([]); ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(drag.x0, drag.y0, 4 * u, 0, Math.PI * 2); ctx.fill();
+  }
+  if (drag && drag.mode === "star" && drag.star && !hi) { const [sx, sy] = toS(drag.star.x, drag.star.y), pulse = 1 + 0.1 * Math.sin(performance.now() / 90);
+    ctx.strokeStyle = "rgba(255,240,200,0.7)"; ctx.lineWidth = 1.5 * u; ctx.beginPath(); ctx.arc(sx, sy, (drag.star.r * S * 3 + 12 * u) * pulse, 0, Math.PI * 2); ctx.stroke(); }
+}
+function recordTrails() { for (const b of B) { b.tr[b.ti * 2] = b.x; b.tr[b.ti * 2 + 1] = b.y; b.ti = (b.ti + 1) % TRAILMAX; if (b.tn < TRAILMAX) b.tn++; } }
+// ---- interaction helpers ------------------------------------------------------------------------------------------------------
+function fling(t, x, y, vx, vy, m) { const b = body(x, y, vx, vy, m ?? (0.002 + t.rng() * 0.006), t.rng.int(0, t.colors.length - 2)); B.push(b); accel(G(t), false, []); return b; }
+function dropOrbiter(t, x, y) {   // tap: planet on a circular orbit around whatever pulls hardest there
+  let best = null, pull = 0; for (const b of B) { const d2 = (b.x - x) ** 2 + (b.y - y) ** 2 + EPS2, p = b.m / d2; if (p > pull) { pull = p; best = b; } }
+  if (!best) return fling(t, x, y, 0, 0, 0.3);
+  const dx = x - best.x, dy = y - best.y, r = Math.hypot(dx, dy) || 1e-3, v = circ(G(t), best.m, r);
+  return fling(t, x, y, best.vx - dy / r * v, best.vy + dx / r * v);
+}
+function step(t, n, h = H0) { for (let i = 0; i < n; i++) stepOnce(t, h); }
+
+Kit.app({
+  setup(t) {
+    makeSprites(t); loadPreset(t, t.s.preset);
+    t.canvas.addEventListener("wheel", e => { e.preventDefault(); const r = t.canvas.getBoundingClientRect(); zoomAt(t, Math.exp(-e.deltaY * 0.0015), (e.clientX - r.left) * t.W / r.width, (e.clientY - r.top) * t.H / r.height); }, { passive: false });
+  },
+  frame(t, dt) {
+    if (drag && drag.mode === "pending" && performance.now() - drag.t0 > 350) {   // hold without moving -> grow a star
+      const [x, y] = S2W(t, drag.x0, drag.y0); drag.mode = "star"; drag.ts = performance.now();
+      drag.star = body(x, y, 0, 0, STAR, t.rng.int(0, t.colors.length - 1)); drag.star.pinned = true; B.push(drag.star);
+    }
+    if (drag && drag.mode === "star" && drag.star) { const held = (performance.now() - drag.ts) / 1000; drag.star.m = Math.min(3, STAR + 0.6 * held ** 1.5); drag.star.r = radius(drag.star.m); drag.star.light = false;
+      if (drag.star.dead) drag.star = B.find(b => b.pinned) || null; }
+    const simDt = dt * t.s.speed * RATE, pairs = Math.max(1, B.length * B.length / 2), maxSub = Math.max(2, Math.min(40, Math.floor(4e5 / pairs)));
+    const n = Math.min(maxSub, Math.ceil(simDt / H0 - 1e-9)); step(t, n);
+    prune(); recordTrails();
+    for (const f of flashes) f.age += dt; flashes = flashes.filter(f => f.age < f.life);
+    if (drag && drag.mode === "fling") drag.path = predict(t);
+    draw(t, t.ctx, t.W, t.H, false);
+  },
+  resize(t) { field = null; },
+  down(t, p) { if (p.gesture || drag) return; drag = { id: p.id, x0: p.cx, y0: p.cy, x: p.cx, y: p.cy, t0: performance.now(), mode: "pending" }; },
+  move(t, p) {
+    if (!drag || p.id !== drag.id) return; drag.x = p.cx; drag.y = p.cy;
+    if (drag.mode === "pending" && Math.hypot(p.cx - drag.x0, p.cy - drag.y0) > 10 * (t.dpr || 1)) drag.mode = "fling";
+    if (drag.mode === "star" && drag.star) { const [x, y] = S2W(t, p.cx, p.cy); drag.star.x = x; drag.star.y = y; }
+  },
+  up(t, p) {
+    if (!drag || p.id !== drag.id) return;
+    if (drag.mode === "fling") { const [x, y] = S2W(t, drag.x0, drag.y0), [vx, vy] = flingVel(t); fling(t, x, y, vx, vy); }
+    if (drag.mode === "star" && drag.star) { drag.star.pinned = false; Kit.toast(`Star: mass ${drag.star.m.toFixed(2)}`, 1200); }
+    drag = null;
+  },
+  cancel(t, p) { if (drag && p.id === drag.id) { if (drag.star) drag.star.pinned = false; drag = null; } },
+  tap(t, p) { if (drag && drag.mode === "star") return; const [x, y] = S2W(t, p.cx, p.cy); dropOrbiter(t, x, y); drag = null; },
+  pinch(t, g) { zoomAt(t, g.scale, g.cx, g.cy); const S = scaleOf(t); cam.x -= g.dx / S; cam.y -= g.dy / S; },
+  change(t, key) {
+    if (key === "preset" || key === "seed") loadPreset(t, t.s.preset);
+    if (key === "palette") { makeSprites(t); for (const b of B) b.c %= t.colors.length; }
+  },
+  randomize(t) { t.state.setMany({ seed: Kit.newSeed(), preset: t.rng.pick(Object.keys(PRESETS)), palette: t.rng.pick(Object.keys(t.config.palettes)) }); },
+  quality(t, q) { qual = q; cap = Math.max(60, Math.round(600 * q)); t.view.scale = Math.max(0.5, Math.sqrt(q)); t.view.fit(); field = null; prune(); },
+  render(t, ctx, W, H) { const sp = sprites; draw(t, ctx, W, H, true); sprites = sp; },
+  status: () => `${B.length} bodies · ${merges} merges`,
+  actions: [
+    { id: "clear", label: "Clear", key: "c", desc: "Remove every body", fn: t => { B = []; flashes = []; drag = null; Kit.toast("Cleared"); } },
+    { id: "restart", label: "Restart preset", key: "p", desc: "Reload the current preset", fn: t => loadPreset(t, t.s.preset) },
+    { id: "view", label: "Reset view", key: "z", desc: "Reset zoom / pan", fn: t => { cam = { x: 0, y: 0, z: t.s.preset === "galaxy" ? 0.85 : 1 }; } },
+  ],
+  debug: t => ({
+    get bodies() { return B.map(b => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m, r: b.r })); },
+    get count() { return B.length; }, get merges() { return merges; }, get sounds() { return sounds; }, get simTime() { return simTime; },
+    get cap() { return cap; }, get cam() { return { ...cam }; }, get pinned() { return B.filter(b => b.pinned).map(b => b.m); },
+    get drag() { return drag ? { mode: drag.mode, path: (drag.path || []).length / 2 } : null; },
+    energy: () => energy(t), momentum, step: (n, h) => { step(t, n, h); return B.length; }, H0, EPS,
+    loadPreset: name => { loadPreset(t, name); return B.length; },
+    fling: (x, y, vx, vy, m) => fling(t, x, y, vx, vy, m).id,
+    clear: () => { B = []; flashes = []; },
+    collisionDemo() {   // two bodies on a head-on-ish course in empty space; returns momentum before (merge happens on later steps)
+      B = []; flashes = []; merges = 0; fling(t, -0.6, 0.02, 0.9, 0, 0.2); fling(t, 0.6, -0.02, -1.2, 0.05, 0.08); return momentum();
+    },
+    toScreen: (x, y) => W2S(t, x, y),
+  }),
+});
+
+})();
+</script>
+</body>
+</html>

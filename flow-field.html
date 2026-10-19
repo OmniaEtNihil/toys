@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:,">
+<title>Flow Field: generative particle toy</title>
+<style>
+  :root { color-scheme: dark; --ui: rgba(14,14,22,.94); --line: rgba(255,255,255,.09); --txt: #ececf4; --mute: #a9a9c0; --acc: #5b4de0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--txt); }
+  canvas#c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+  button { font: inherit; color: var(--txt); background: #1d1d2b; border: 1px solid #2e2e44; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+  button:hover { background: #26263a; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #9b8cff; outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--acc); border-color: #7b6cff; color: #fff; }
+  #toggle { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); z-index: 3;
+            width: 42px; height: 42px; border-radius: 50%; font-size: 20px; line-height: 1; padding: 0; background: rgba(20,20,32,.72); border-color: rgba(255,255,255,.14); backdrop-filter: blur(6px); }
+  #panel { position: fixed; z-index: 2; top: calc(60px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); width: 310px;
+           max-height: calc(100vh - 72px); overflow: auto; background: var(--ui); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 14px;
+           box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(10px); }
+  #panel[hidden] { display: none; }
+  #panel h1 { font-size: 14px; margin: 0 0 8px; letter-spacing: .02em; }
+  .sec { margin: 10px 0 0; }
+  .sec > .lab { color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+  .pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .pals button { padding: 4px; display: flex; flex-direction: column; gap: 3px; align-items: stretch; font-size: 11px; }
+  .pals .sw { height: 14px; border-radius: 4px; }
+  .row { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 6px; margin: 4px 0; }
+  .row label { color: var(--txt); }
+  .row output { color: var(--mute); text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+  input[type=range] { width: 100%; accent-color: #8f80ff; }
+  .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg button { flex: 1; padding: 5px 4px; }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #status { margin-top: 10px; color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .keys { color: var(--mute); font-size: 11px; margin-top: 6px; }
+  kbd { background: #24243a; border: 1px solid #34344e; border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--txt); }
+  #hint, #toast { position: fixed; left: 50%; transform: translateX(-50%); z-index: 2; background: rgba(12,12,20,.86); color: var(--txt);
+                  border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 12.5px; pointer-events: none; transition: opacity .6s; white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis; }
+  #hint { bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #toast { top: calc(14px + env(safe-area-inset-top)); opacity: 0; }
+  .gone { opacity: 0 !important; }
+  .noui #toggle, .noui #panel, .noui #hint, .noui #toast { display: none !important; }
+  #nocanvas { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; }
+  @media (max-width: 600px) {
+    #panel { top: auto; left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-height: 56vh; }
+    .row { grid-template-columns: 86px 1fr 40px; }
+    button { padding: 8px 9px; }
+    .pals button { padding: 5px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Animated flow field of glowing particles" role="img"></canvas>
+<button id="toggle" aria-label="Show controls" aria-expanded="false" aria-controls="panel" title="Controls (H)">⚙</button>
+<section id="panel" hidden aria-label="Controls">
+  <h1>Flow Field</h1>
+  <div class="sec"><div class="lab" id="pal-lab">Palette</div><div class="pals" id="pals" role="group" aria-labelledby="pal-lab"></div></div>
+  <div class="sec">
+    <div class="row"><label for="n">Particles</label><input id="n" type="range" min="300" max="12000" step="100"><output for="n" id="n-o"></output></div>
+    <div class="row"><label for="v">Speed</label><input id="v" type="range" min="0.1" max="3" step="0.05"><output for="v" id="v-o"></output></div>
+    <div class="row"><label for="t">Trail length</label><input id="t" type="range" min="0" max="0.99" step="0.01"><output for="t" id="t-o"></output></div>
+    <div class="row"><label for="z">Noise scale</label><input id="z" type="range" min="0.3" max="8" step="0.1"><output for="z" id="z-o"></output></div>
+    <div class="row"><label for="u">Turbulence</label><input id="u" type="range" min="0.1" max="3" step="0.05"><output for="u" id="u-o"></output></div>
+  </div>
+  <div class="sec"><div class="lab" id="mode-lab">Draw</div><div class="seg" id="mode" role="group" aria-labelledby="mode-lab">
+    <button data-v="l">Lines</button><button data-v="d">Dots</button></div></div>
+  <div class="sec"><div class="lab" id="sym-lab">Symmetry</div><div class="seg" id="sym" role="group" aria-labelledby="sym-lab">
+    <button data-v="0">Off</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="6">6</button><button data-v="8">8</button></div></div>
+  <div class="sec"><div class="lab" id="force-lab">Pointer</div><div class="seg" id="force" role="group" aria-labelledby="force-lab">
+    <button data-v="1">Attract</button><button data-v="-1">Repel</button></div></div>
+  <div class="sec acts">
+    <button id="pause" aria-pressed="false">Pause</button>
+    <button id="random">Randomize</button>
+    <button id="save">Save image</button>
+    <button id="clear">Clear</button>
+    <button id="wp-phone" title="Render a 1170×2532 phone wallpaper offscreen">Phone wallpaper</button>
+    <button id="wp-desk" title="Render a 2560×1440 desktop wallpaper offscreen">Desktop wallpaper</button>
+    <button id="link" style="grid-column: span 2">Copy share link</button>
+  </div>
+  <div id="status" aria-live="polite"></div>
+  <div class="keys"><kbd>Space</kbd> pause · <kbd>R</kbd> randomize · <kbd>S</kbd> save · <kbd>H</kbd> panel</div>
+</section>
+<div id="hint"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+"use strict";
+const TAU = Math.PI * 2;
+const PALETTES = {
+  neon:   { bg: "#05010d", c: ["#ff2bd6", "#7a5cff", "#00e5ff", "#39ff88", "#fff35c"] },
+  aurora: { bg: "#020a10", c: ["#3cffb4", "#2ad1ff", "#7b6cff", "#b05cff", "#d4ff6b"] },
+  sunset: { bg: "#0d0408", c: ["#ff5e3a", "#ff9a3c", "#ffd36b", "#ff3d7f", "#b23cff"] },
+  ocean:  { bg: "#010812", c: ["#0077ff", "#00c2ff", "#5ef2ff", "#1de9b6", "#c4fbff"] },
+  ember:  { bg: "#0a0302", c: ["#ff3b00", "#ff7a00", "#ffb300", "#ffd98a", "#ff1744"] },
+  mono:   { bg: "#050505", c: ["#ffffff", "#cfcfcf", "#9a9a9a", "#e8e8e8", "#777777"] },
+  candy:  { bg: "#10031a", c: ["#ff7eb6", "#ffd1e8", "#7ef9ff", "#c3a6ff", "#fffd8c"] },
+  forest: { bg: "#020804", c: ["#2ecc71", "#a8e063", "#f6e58d", "#1abc9c", "#56ab2f"] },
+};
+const PNAMES = Object.keys(PALETTES);
+
+// ---------- seeded PRNG + 3D simplex noise (Gustavson), all inline ----------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makeNoise(seed) {
+  const r = mulberry32(seed ^ 0x9e3779b9), p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0, t = p[i]; p[i] = p[j]; p[j] = t; }
+  const perm = new Uint8Array(512), pm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) { perm[i] = p[i & 255]; pm[i] = (perm[i] % 12) * 3; }
+  const g = new Float32Array([1,1,0,-1,1,0,1,-1,0,-1,-1,0,1,0,1,-1,0,1,1,0,-1,-1,0,-1,0,1,1,0,-1,1,0,1,-1,0,-1,-1]);
+  const F3 = 1 / 3, G3 = 1 / 6;
+  return function (xin, yin, zin) {
+    const s = (xin + yin + zin) * F3, i = Math.floor(xin + s), j = Math.floor(yin + s), k = Math.floor(zin + s);
+    const t = (i + j + k) * G3, x0 = xin - (i - t), y0 = yin - (j - t), z0 = zin - (k - t);
+    let i1, j1, k1, i2, j2, k2;
+    if (x0 >= y0) { if (y0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0; } else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1; } else { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1; } }
+    else { if (y0 < z0) { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1; } else if (x0 < z0) { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1; } else { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0; } }
+    const x1 = x0 - i1 + G3, y1 = y0 - j1 + G3, z1 = z0 - k1 + G3, x2 = x0 - i2 + 2 * G3, y2 = y0 - j2 + 2 * G3, z2 = z0 - k2 + 2 * G3;
+    const x3 = x0 - 1 + 3 * G3, y3 = y0 - 1 + 3 * G3, z3 = z0 - 1 + 3 * G3, ii = i & 255, jj = j & 255, kk = k & 255;
+    let n = 0, q, gi;
+    q = 0.6 - x0 * x0 - y0 * y0 - z0 * z0; if (q > 0) { gi = pm[ii + perm[jj + perm[kk]]]; q *= q; n += q * q * (g[gi] * x0 + g[gi + 1] * y0 + g[gi + 2] * z0); }
+    q = 0.6 - x1 * x1 - y1 * y1 - z1 * z1; if (q > 0) { gi = pm[ii + i1 + perm[jj + j1 + perm[kk + k1]]]; q *= q; n += q * q * (g[gi] * x1 + g[gi + 1] * y1 + g[gi + 2] * z1); }
+    q = 0.6 - x2 * x2 - y2 * y2 - z2 * z2; if (q > 0) { gi = pm[ii + i2 + perm[jj + j2 + perm[kk + k2]]]; q *= q; n += q * q * (g[gi] * x2 + g[gi + 1] * y2 + g[gi + 2] * z2); }
+    q = 0.6 - x3 * x3 - y3 * y3 - z3 * z3; if (q > 0) { gi = pm[ii + 1 + perm[jj + 1 + perm[kk + 1]]]; q *= q; n += q * q * (g[gi] * x3 + g[gi + 1] * y3 + g[gi + 2] * z3); }
+    return 32 * n;   // ~[-1, 1]
+  };
+}
+
+// ---------- simulation (resolution independent: unit u = min(W,H)/1000) ----------
+class Sim {
+  constructor(ctx, W, H, P, count) { this.ctx = ctx; this.P = P; this.count = count; this.speedMul = 1; this.W = W; this.H = H; this.u = Math.min(W, H) / 1000; this.reseed(); }
+  reseed() {
+    const s = this.P.s >>> 0; this.rng = mulberry32(s); this.noise = makeNoise(s);
+    this.time = this.rng() * 100; this.base = this.rng() * TAU; this.frame = 0; this.bursts = []; this.cap = 0; this.grow(this.count); this.clear();
+  }
+  grow(n) {
+    const old = this.cap ? this.a : null, cap = Math.max(n, 16), a = {};
+    for (const k of ["x", "y", "px", "py", "vx", "vy", "life", "sp"]) { a[k] = new Float32Array(cap); if (old) a[k].set(old[k].subarray(0, Math.min(this.cap, cap))); }
+    a.col = new Uint8Array(cap); if (old) a.col.set(old.col.subarray(0, Math.min(this.cap, cap)));
+    const from = old ? this.cap : 0; this.a = a; this.cap = cap;
+    for (let i = from; i < cap; i++) this.spawn(i);
+  }
+  setCount(n) { n = Math.max(50, n | 0); if (n > this.cap) this.grow(Math.ceil(n * 1.25)); this.count = n; }
+  spawn(i) { const a = this.a, r = this.rng; a.x[i] = a.px[i] = r() * this.W; a.y[i] = a.py[i] = r() * this.H; a.vx[i] = a.vy[i] = 0; a.life[i] = 80 + r() * 280; a.sp[i] = 0.55 + r() * 0.9; }
+  resize(W, H) { this.W = W; this.H = H; this.u = Math.min(W, H) / 1000; this.clear(); }
+  clear() { const c = this.ctx; c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; c.fillStyle = PALETTES[this.P.p].bg; c.fillRect(0, 0, this.W, this.H); }
+  burst(x, y) { this.bursts.push([x, y]); }
+  step(pointers, ds = 1) {
+    const P = this.P, a = this.a, n = this.count, W = this.W, H = this.H, u = this.u, nz = this.noise, NC = PALETTES[P.p].c.length;
+    const zs = P.z / (1000 * u), turb = Math.PI * P.u, spd = P.v * 1.7 * u * this.speedMul, t = this.time, base = this.base, dir = P.a;
+    this.time += 0.0021 * ds * (0.4 + 0.6 * Math.min(P.v, 2));
+    const R = 210 * u, R2 = R * R, pts = pointers || [], np = pts.length;
+    for (const [bx, by] of this.bursts) {          // click/tap burst: radial kick + fresh particles at the point
+      const Rb = 280 * u, Rb2 = Rb * Rb;
+      for (let i = 0; i < n; i++) { const dx = a.x[i] - bx, dy = a.y[i] - by, d2 = dx * dx + dy * dy;
+        if (d2 < Rb2 && d2 > 0.01) { const d = Math.sqrt(d2), f = 11 * u * (1 - d / Rb); a.vx[i] += dx / d * f; a.vy[i] += dy / d * f; } }
+      const m = Math.min(n, 140);
+      for (let k = 0; k < m; k++) { const i = (Math.random() * n) | 0, ang = Math.random() * TAU, sp = (3 + Math.random() * 8) * u;
+        a.x[i] = a.px[i] = bx; a.y[i] = a.py[i] = by; a.vx[i] = Math.cos(ang) * sp; a.vy[i] = Math.sin(ang) * sp; a.life[i] = 60 + Math.random() * 120; }
+    }
+    this.bursts.length = 0;
+    const maxV = 16 * u;
+    for (let i = 0; i < n; i++) {
+      const X = a.x[i], Y = a.y[i];
+      const ang = (nz(X * zs, Y * zs, t) + 0.35 * nz(X * zs * 2.3 + 17.1, Y * zs * 2.3 - 9.7, t * 1.4)) * turb + base;
+      const s = spd * a.sp[i];
+      let vx = a.vx[i] * 0.86 + Math.cos(ang) * s * 0.14, vy = a.vy[i] * 0.86 + Math.sin(ang) * s * 0.14;
+      for (let k = 0; k < np; k++) { const p = pts[k], dx = p.x - X, dy = p.y - Y, d2 = dx * dx + dy * dy;
+        if (d2 < R2 && d2 > 1) { const d = Math.sqrt(d2), f = (1 - d / R) * p.s * u * 0.55; vx += (dx * dir - dy * 0.6) / d * f; vy += (dy * dir + dx * 0.6) / d * f; } }
+      const v2 = vx * vx + vy * vy; if (v2 > maxV * maxV) { const m = maxV / Math.sqrt(v2); vx *= m; vy *= m; }
+      a.vx[i] = vx; a.vy[i] = vy; a.px[i] = X; a.py[i] = Y;
+      const nx = X + vx * ds, ny = Y + vy * ds; a.x[i] = nx; a.y[i] = ny;
+      let f = (ang / TAU) % 1; if (f < 0) f += 1; a.col[i] = (f * NC) | 0;
+      a.life[i] -= ds;
+      if (a.life[i] <= 0 || nx < -2 || ny < -2 || nx > W + 2 || ny > H + 2) this.spawn(i);
+    }
+  }
+  transforms() {
+    const k = this.P.k | 0, cx = this.W / 2, cy = this.H / 2;
+    if (k < 2) return [[1, 0, 0, 1, 0, 0]];
+    const out = [], rots = k / 2;
+    for (let r = 0; r < rots; r++) { const th = r * TAU / rots, co = Math.cos(th), si = Math.sin(th);
+      for (const m of [1, -1]) { const A = co * m, B = si * m, C = -si, D = co; out.push([A, B, C, D, cx - (A * cx + C * cy), cy - (B * cx + D * cy)]); } }
+    return out;
+  }
+  draw() {
+    const c = this.ctx, P = this.P, pal = PALETTES[P.p], a = this.a, n = this.count, u = this.u, NC = pal.c.length;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.fillStyle = pal.bg;
+    c.globalAlpha = 0.012 + 0.3 * Math.pow(1 - P.t, 1.6); c.fillRect(0, 0, this.W, this.H);
+    if (++this.frame % 10 === 0) { c.globalAlpha = 0.05; c.fillRect(0, 0, this.W, this.H); }   // clears 8-bit fade residue
+    const paths = []; for (let j = 0; j < NC; j++) paths.push(new Path2D());
+    const dots = P.m === "d", ds = Math.max(1.2, 2.2 * u), jump = 40 * u;
+    for (let i = 0; i < n; i++) {
+      const x = a.x[i], y = a.y[i], p = paths[a.col[i]];
+      if (dots) p.rect(x - ds / 2, y - ds / 2, ds, ds);
+      else { const px = a.px[i], py = a.py[i]; if (Math.abs(x - px) + Math.abs(y - py) > jump) continue; p.moveTo(px, py); p.lineTo(x, y); }
+    }
+    const tr = this.transforms();
+    c.globalCompositeOperation = "lighter"; c.lineWidth = Math.max(0.7, 1.15 * u); c.lineCap = "round";
+    c.globalAlpha = Math.min(0.95, Math.max(0.2, 0.95 * Math.sqrt(2500 / Math.max(1, n)))) / Math.sqrt(Math.max(1, tr.length / 2)) * (dots ? 0.8 : 1);
+    for (const m of tr) { c.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      for (let j = 0; j < NC; j++) { if (dots) { c.fillStyle = pal.c[j]; c.fill(paths[j]); } else { c.strokeStyle = pal.c[j]; c.stroke(paths[j]); } } }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.globalAlpha = 1;
+  }
+}
+
+// ---------- app ----------
+const $ = id => document.getElementById(id);
+const canvas = $("c"), ctx = canvas.getContext && canvas.getContext("2d", { alpha: false });
+if (!ctx) { document.body.insertAdjacentHTML("beforeend", '<div id="nocanvas">Sorry, this browser has no Canvas 2D support.</div>'); return; }
+const coarse = matchMedia("(pointer: coarse)").matches;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DEF = { s: 1, p: "aurora", n: coarse ? 2600 : 5000, v: 1, t: 0.9, z: 2.2, u: 1.2, m: "l", k: 0, a: 1 };
+const LIM = { n: [300, 12000], v: [0.1, 3], t: [0, 0.99], z: [0.3, 8], u: [0.1, 3] };
+const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
+function sanitize(P) {
+  for (const k in LIM) { const x = +P[k]; P[k] = Number.isFinite(x) ? Math.min(LIM[k][1], Math.max(LIM[k][0], x)) : DEF[k]; }
+  P.n = Math.round(P.n); P.s = (Math.abs(parseInt(P.s, 10)) || 1) % 2147483647 || 1;
+  if (!PALETTES[P.p]) P.p = DEF.p; if (P.m !== "d") P.m = "l";
+  P.k = [0, 2, 4, 6, 8].includes(+P.k) ? +P.k : 0; P.a = +P.a === -1 ? -1 : 1; return P;
+}
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1)), P = { ...DEF, s: newSeed() };
+  for (const k of Object.keys(DEF)) if (h.has(k)) P[k] = h.get(k);
+  return { P: sanitize(P), freeze: Math.min(5000, Math.max(0, parseInt(h.get("f"), 10) || 0)), ui: h.get("ui") !== "0", has: h.has("s") };
+}
+const r2 = x => Math.round(x * 100) / 100;
+function hashFor(P) { return "#" + new URLSearchParams({ s: P.s, p: P.p, n: P.n, v: r2(P.v), t: r2(P.t), z: r2(P.z), u: r2(P.u), m: P.m, k: P.k, a: P.a }); }
+
+let { P, freeze, ui, has } = parseHash();
+let sim, dpr = 1, paused = false, perf = 1, frozen = freeze > 0, busy = false, wroteHash = "";
+const symFactor = () => P.k >= 2 ? Math.min(1, 2 / P.k) * 1.6 : 1;   // symmetry multiplies drawn copies; simulate fewer
+const targetCount = () => Math.max(100, Math.round(P.n * Math.min(1, symFactor())));
+function fit() {
+  const cw = Math.max(1, innerWidth), ch = Math.max(1, innerHeight);
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const maxPx = 4.2e6; if (cw * ch * dpr * dpr > maxPx) dpr = Math.max(0.75, Math.sqrt(maxPx / (cw * ch)));
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+}
+function rebuild() { sim = new Sim(ctx, canvas.width, canvas.height, P, Math.max(50, Math.round(targetCount() * perf))); sim.speedMul = reduced ? 0.5 : 1; }
+function applyCount() { if (sim) sim.setCount(Math.round(targetCount() * perf)); }
+function writeHash() { const h = hashFor(P); if (location.hash !== h) { wroteHash = h; history.replaceState(null, "", h); } }
+let hashTimer = 0; const queueHash = () => { clearTimeout(hashTimer); hashTimer = setTimeout(writeHash, 250); };
+
+// pointers: mouse hover attracts/repels (stronger while pressed); touch/pen while down; multi-touch = several pointers
+const pointers = new Map();
+function pos(e) { return { x: e.clientX * (canvas.width / innerWidth), y: e.clientY * (canvas.height / innerHeight) }; }
+canvas.addEventListener("pointerdown", e => { const p = pos(e); pointers.set(e.pointerId, { ...p, down: true, type: e.pointerType, t0: performance.now(), x0: p.x, y0: p.y });
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {} });
+canvas.addEventListener("pointermove", e => { const p = pos(e), o = pointers.get(e.pointerId);
+  if (o) { o.x = p.x; o.y = p.y; } else if (e.pointerType === "mouse") pointers.set(e.pointerId, { ...p, down: false, type: "mouse" }); });
+function up(e, cancel) {
+  const o = pointers.get(e.pointerId); if (!o) return;
+  if (!cancel && o.down && performance.now() - o.t0 < 320 && Math.hypot(o.x - o.x0, o.y - o.y0) < 14 * dpr) sim.burst(o.x, o.y);
+  if (o.type === "mouse" && !cancel) o.down = false; else pointers.delete(e.pointerId);
+}
+canvas.addEventListener("pointerup", e => up(e, false));
+canvas.addEventListener("pointercancel", e => up(e, true));
+canvas.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") pointers.delete(e.pointerId); });
+const active = () => { const out = []; for (const p of pointers.values()) if (p.down || p.type === "mouse") out.push({ x: p.x, y: p.y, s: p.down ? 2.2 : 1 }); return out; };
+
+// loop with adaptive particle count
+let last = performance.now(), acc = 0, frames = 0, fpsT = last, fps = 0, good = 0, started = last, workMs = 0, workN = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(100, now - last); last = now; frames++;
+  if (now - fpsT >= 1000) { fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; adapt(now); status(); }
+  if (paused || frozen) return;
+  acc += dt; if (acc < 14) return;            // ~60 sim steps/s even on 120 Hz screens
+  const ds = Math.min(2.5, Math.max(0.5, acc / 16.667)); acc = 0;
+  const w0 = performance.now(); sim.step(active(), ds); sim.draw(); workMs += performance.now() - w0; workN++;
+}
+function adapt(now) {
+  if (paused || frozen || document.hidden || now - started < 2500) return;
+  if (fps < 42 && perf > 0.08) { perf *= fps < 25 ? 0.7 : 0.85; applyCount(); good = 0; }
+  else if (fps > 56 && perf < 1) { if (++good >= 2) { perf = Math.min(1, perf * 1.3); applyCount(); good = 0; } }   // recover ~1 → full in ~20 s
+}
+function status() {
+  const ms = workN ? workMs / workN : 0; FF.workMs = Math.round(ms * 10) / 10; workMs = 0; workN = 0; FF.fps = Math.round(fps * 10) / 10;
+  $("status").textContent = `${Math.round(fps)} fps · ${sim.count.toLocaleString()} particles${perf < 0.999 ? " (auto-reduced)" : ""} · seed ${P.s}${paused ? " · paused" : ""}`;
+}
+
+// ---------- UI ----------
+const panel = $("panel"), toggle = $("toggle");
+function setPanel(open) { panel.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.setAttribute("aria-label", open ? "Hide controls" : "Show controls"); }
+toggle.onclick = () => setPanel(panel.hidden);
+const pals = $("pals");
+for (const name of PNAMES) { const b = document.createElement("button"); b.dataset.v = name; b.setAttribute("aria-label", `Palette ${name}`);
+  b.innerHTML = `<span class="sw" style="background:linear-gradient(90deg,${PALETTES[name].c.join(",")})"></span><span>${name}</span>`; pals.appendChild(b); }
+const fmt = { n: x => (+x).toLocaleString(), v: x => (+x).toFixed(2), t: x => (+x).toFixed(2), z: x => (+x).toFixed(1), u: x => (+x).toFixed(2) };
+function syncUI() {
+  for (const k of ["n", "v", "t", "z", "u"]) { $(k).value = P[k]; $(k + "-o").textContent = fmt[k](P[k]); }
+  for (const [id, key] of [["pals", "p"], ["mode", "m"], ["sym", "k"], ["force", "a"]])
+    for (const b of $(id).children) b.setAttribute("aria-pressed", String(b.dataset.v === String(P[key])));
+  $("pause").setAttribute("aria-pressed", String(paused)); $("pause").textContent = paused ? "Play" : "Pause";
+}
+for (const k of ["n", "v", "t", "z", "u"]) $(k).addEventListener("input", e => { P[k] = +e.target.value; $(k + "-o").textContent = fmt[k](P[k]); if (k === "n") applyCount(); queueHash(); });
+for (const [id, key] of [["pals", "p"], ["mode", "m"], ["sym", "k"], ["force", "a"]])
+  $(id).addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+    P[key] = key === "k" || key === "a" ? +b.dataset.v : b.dataset.v; if (key === "k") applyCount(); syncUI(); queueHash(); if (frozen) unfreeze(); });
+function unfreeze() { frozen = false; }
+function setPaused(v) { paused = v; if (!paused) unfreeze(); syncUI(); status(); }
+$("pause").onclick = () => setPaused(!paused);
+$("clear").onclick = () => sim.clear();
+function randomize() {
+  let p; do p = PNAMES[(Math.random() * PNAMES.length) | 0]; while (p === P.p);
+  const R = (a, b) => a + Math.random() * (b - a);
+  Object.assign(P, { s: newSeed(), p, n: Math.round(R(coarse ? 1800 : 3500, coarse ? 3600 : 7000) / 100) * 100, v: r2(R(0.6, 1.7)), t: r2(R(0.84, 0.97)),
+    z: r2(R(1.2, 3.6)), u: r2(R(0.6, 1.9)), m: Math.random() < 0.85 ? "l" : "d", k: [0, 0, 0, 2, 4, 6, 8][(Math.random() * 7) | 0] });
+  unfreeze(); rebuild(); syncUI(); writeHash(); toast(`Randomized: ${P.p}${P.k ? ` · ${P.k}-fold` : ""}`);
+}
+$("random").onclick = randomize;
+function download(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+const pngOf = cv => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("toBlob failed")), "image/png"));
+async function saveImage() { const b = await pngOf(canvas); download(b, `flow-${P.p}-${P.s}.png`); toast(`Saved PNG ${canvas.width}×${canvas.height}`); return b; }
+$("save").onclick = saveImage;
+async function wallpaper(w, h, { steps = 420, download: dl = true } = {}) {
+  if (busy) return null; busy = true;
+  try {
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const c2 = cv.getContext("2d", { alpha: false });
+    const uW = Math.min(w, h) / 1000, uV = sim.u, ratio = (w * h / (uW * uW)) / (sim.W * sim.H / (uV * uV));
+    const s = new Sim(c2, w, h, { ...P }, Math.min(16000, Math.round(targetCount() * ratio)));
+    for (let i = 0; i < steps; i++) { s.step(null, 1); s.draw(); if (i % 12 === 11) { toast(`Rendering ${w}×${h}… ${Math.round(i / steps * 100)}%`, 4000); await new Promise(r => setTimeout(r, 0)); } }
+    const b = await pngOf(cv); if (dl) download(b, `flow-${P.p}-${P.s}-${w}x${h}.png`); toast(`Wallpaper ${w}×${h} saved`); return b;
+  } finally { busy = false; }
+}
+$("wp-phone").onclick = () => wallpaper(1170, 2532);
+$("wp-desk").onclick = () => wallpaper(2560, 1440);
+$("link").onclick = async () => { writeHash(); try { await navigator.clipboard.writeText(location.href); toast("Share link copied"); } catch (_) { prompt("Copy this link:", location.href); } };
+let toastT = 0; function toast(msg, ms = 1800) { const t = $("toast"); t.textContent = msg; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, ms); }
+addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.matches("input[type=text], textarea")) return;
+  const k = e.key.toLowerCase();
+  if (e.code === "Space") { e.preventDefault(); if (!e.repeat) setPaused(!paused); }
+  else if (k === "r") randomize(); else if (k === "s") { e.preventDefault(); saveImage(); } else if (k === "h") setPanel(panel.hidden);
+});
+addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); });
+addEventListener("hashchange", () => { if (location.hash === wroteHash) return; const r = parseHash(); P = r.P; perf = 1; rebuild(); syncUI(); if (r.freeze) freezeAt(r.freeze); });
+let rzT = 0; addEventListener("resize", () => { clearTimeout(rzT); rzT = setTimeout(() => { fit(); if (frozen) { rebuild(); freezeAt(freeze); } else sim.resize(canvas.width, canvas.height); }, 150); });
+function freezeAt(nsteps) { rebuild(); for (let i = 0; i < nsteps; i++) { sim.step(null, 1); sim.draw(); } frozen = true; freeze = nsteps; status(); }
+
+// test / automation hooks
+function small(size = 64) { const t = document.createElement("canvas"); t.width = t.height = size; const c = t.getContext("2d"); c.drawImage(canvas, 0, 0, size, size); return c.getImageData(0, 0, size, size).data; }
+const FF = window.FF = {
+  get params() { return { ...P }; }, get count() { return sim.count; }, get paused() { return paused; }, get frozen() { return frozen; }, get perf() { return perf; }, get pointers() { return active().length; },
+  fps: 0, workMs: 0, randomize, saveImage, wallpaper, freezeAt, setPaused,
+  set(o) { Object.assign(P, o); sanitize(P); rebuild(); syncUI(); writeHash(); },
+  burst(x, y) { sim.burst(x * canvas.width / innerWidth, y * canvas.height / innerHeight); },
+  sig() { const d = small(32); let h = 2166136261; for (let i = 0; i < d.length; i += 4) h = Math.imul(h ^ (d[i] + 7 * d[i + 1] + 13 * d[i + 2]), 16777619); return (h >>> 0).toString(16); },
+  meanColor() { const d = small(64); let r = 0, g = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } const n = d.length / 4; return { r: r / n, g: g / n, b: b / n }; },
+  mirrorDiff() { const S = 64, d = small(S); let diff = 0, sum = 0;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S / 2; x++) { const i = (y * S + x) * 4, j = (y * S + S - 1 - x) * 4, a = d[i] + d[i + 1] + d[i + 2], b = d[j] + d[j + 1] + d[j + 2]; diff += Math.abs(a - b); sum += a + b; }
+    return sum ? 2 * diff / sum : 0; },
+  ui(v) { document.body.classList.toggle("noui", !v); },
+};
+
+// ---------- start ----------
+fit(); rebuild(); syncUI();
+if (!ui) FF.ui(false);
+$("hint").textContent = coarse ? "Touch to attract · tap to burst · ⚙ controls" : "Move to attract · click to burst · ⚙ or H for controls · Space pause";
+setTimeout(() => $("hint").classList.add("gone"), 7000);
+if (freeze) freezeAt(freeze);
+else if (reduced) { freezeAt(200); frozen = false; paused = true; syncUI(); toast("Reduced motion: showing a still. Press Play to animate gently.", 5000); }
+writeHash(); status();
+requestAnimationFrame(t => { last = t; fpsT = t; started = t; requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>
